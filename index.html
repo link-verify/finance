@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FinanceFlow - Neon Multi-Chart Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --neon-purple: #bc13fe;
+            --neon-blue: #00f2ff;
+            --neon-pink: #ff00de;
+            --dark-bg: #0a0a0c;
+        }
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--dark-bg);
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(188, 19, 254, 0.05) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(0, 242, 255, 0.05) 0%, transparent 40%);
+            color: #e2e8f0;
+            min-height: 100vh;
+        }
+        .neon-card {
+            background: rgba(20, 20, 25, 0.6);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 24px;
+            transition: all 0.3s ease;
+        }
+        .neon-card:hover {
+            border-color: rgba(0, 242, 255, 0.3);
+            box-shadow: 0 0 20px rgba(0, 242, 255, 0.1);
+        }
+        .floating-form {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            width: 380px;
+            max-width: calc(100vw - 4rem);
+            transform: translateY(150%);
+            transition: transform 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 100;
+        }
+        .floating-form.active {
+            transform: translateY(0);
+        }
+        .fab-button {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            width: 65px;
+            height: 65px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--neon-purple), var(--neon-blue));
+            box-shadow: 0 0 25px rgba(188, 19, 254, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 110;
+            transition: all 0.4s ease;
+        }
+        .fab-button:hover {
+            transform: scale(1.1) rotate(90deg);
+            box-shadow: 0 0 35px rgba(0, 242, 255, 0.7);
+        }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(188, 19, 254, 0.3);
+            border-radius: 10px;
+        }
+        .chart-container {
+            position: relative;
+            height: 220px;
+            width: 100%;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8 pb-24">
+
+    <div class="max-w-6xl mx-auto">
+        <!-- Header -->
+        <header class="mb-10 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="text-center md:text-left">
+                <h1 class="text-4xl font-black italic text-transparent bg-clip-text bg-gradient-to-r from-[#bc13fe] to-[#00f2ff]">
+                    FINANCE<span class="text-white">FLOW</span>
+                </h1>
+                <p class="text-gray-500 font-light tracking-[0.3em] uppercase text-[10px]">Command Center v2.0</p>
+            </div>
+            <div class="flex gap-4">
+                <div class="neon-card px-6 py-2 border-l-4 border-l-[#00f2ff]">
+                    <p class="text-[10px] text-gray-500 uppercase">Saldo Aktif</p>
+                    <h2 id="total-balance" class="text-xl font-bold text-white">Rp 0</h2>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Dashboard Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            <!-- Charts Section (Left/Top) -->
+            <div class="lg:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                <!-- Line Chart: Trend -->
+                <div class="neon-card p-6 md:col-span-2">
+                    <h3 class="text-xs font-bold mb-4 text-gray-400 uppercase tracking-widest">Tren Saldo Transaksi</h3>
+                    <div class="chart-container" style="height: 250px;">
+                        <canvas id="lineChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Doughnut Chart: Categories -->
+                <div class="neon-card p-6">
+                    <h3 class="text-xs font-bold mb-4 text-gray-400 uppercase tracking-widest">Alokasi Pengeluaran</h3>
+                    <div class="chart-container">
+                        <canvas id="doughnutChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Bar Chart: Comparison -->
+                <div class="neon-card p-6">
+                    <h3 class="text-xs font-bold mb-4 text-gray-400 uppercase tracking-widest">Pemasukan vs Pengeluaran</h3>
+                    <div class="chart-container">
+                        <canvas id="barChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Transaction List (Right/Bottom) -->
+            <div class="lg:col-span-4">
+                <div class="neon-card p-6 h-full flex flex-col">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest">Riwayat Terkini</h3>
+                        <button onclick="clearAll()" class="text-[10px] text-red-400 hover:text-red-300 transition-colors uppercase font-bold">Hapus Semua</button>
+                    </div>
+                    <div id="transaction-list" class="space-y-4 flex-grow overflow-y-auto custom-scrollbar pr-2 max-h-[600px]">
+                        <!-- Items -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- FAB Button -->
+    <div id="fab" class="fab-button shadow-2xl" onclick="toggleForm()">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+        </svg>
+    </div>
+
+    <!-- Floating Form -->
+    <div id="floating-form" class="floating-form neon-card p-8 shadow-2xl border-2 border-[#bc13fe]">
+        <div class="flex justify-between items-center mb-8">
+            <div>
+                <h3 class="text-xl font-bold text-white tracking-tight">Catat Transaksi</h3>
+                <p class="text-xs text-gray-500">Masukkan detail keuangan baru</p>
+            </div>
+            <button onclick="toggleForm()" class="bg-white/5 p-2 rounded-full text-gray-400 hover:text-white transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+        
+        <form id="finance-form" class="space-y-5">
+            <div>
+                <label class="text-[10px] text-gray-500 uppercase font-bold mb-2 block">Keterangan</label>
+                <input type="text" id="desc" placeholder="Makan malam, Gaji, dll..." class="w-full bg-black/60 px-4 py-3 rounded-xl border border-gray-800 text-white focus:border-[#00f2ff] outline-none transition-all placeholder:text-gray-700" required>
+            </div>
+            
+            <div>
+                <label class="text-[10px] text-gray-500 uppercase font-bold mb-2 block">Nominal (Rp)</label>
+                <input type="number" id="amount" placeholder="Contoh: 50000" class="w-full bg-black/60 px-4 py-3 rounded-xl border border-gray-800 text-white focus:border-[#00f2ff] outline-none transition-all placeholder:text-gray-700" required>
+            </div>
+
+            <div>
+                <label class="text-[10px] text-gray-500 uppercase font-bold mb-2 block">Tipe & Kategori</label>
+                <div class="flex gap-2 mb-3">
+                    <button type="button" onclick="setType('income')" id="btn-income" class="flex-1 py-3 rounded-xl border border-cyan-500/30 text-cyan-500 text-[10px] font-black tracking-widest transition-all">INCOME</button>
+                    <button type="button" onclick="setType('expense')" id="btn-expense" class="flex-1 py-3 rounded-xl border border-pink-500/30 text-pink-500 text-[10px] font-black tracking-widest transition-all">EXPENSE</button>
+                </div>
+                <select id="category" class="w-full bg-black/60 px-4 py-3 rounded-xl border border-gray-800 text-white focus:border-[#00f2ff] outline-none transition-all">
+                    <option value="Gaji" class="bg-gray-900">Gaji / Pendapatan</option>
+                    <option value="Makanan" class="bg-gray-900">Makanan & Minuman</option>
+                    <option value="Transport" class="bg-gray-900">Transportasi</option>
+                    <option value="Hiburan" class="bg-gray-900">Hiburan & Lifestyle</option>
+                    <option value="Belanja" class="bg-gray-900">Belanja Kebutuhan</option>
+                    <option value="Lainnya" class="bg-gray-900">Lainnya</option>
+                </select>
+            </div>
+
+            <button type="submit" class="w-full bg-gradient-to-r from-[#bc13fe] to-[#00f2ff] text-white py-4 rounded-xl font-black uppercase tracking-[0.2em] shadow-lg hover:brightness-125 transition-all active:scale-95 text-xs">Simpan Data</button>
+        </form>
+    </div>
+
+    <script>
+        let transactions = JSON.parse(localStorage.getItem('transactions_v2')) || [];
+        let selectedType = 'income';
+        let charts = {};
+
+        function toggleForm() {
+            document.getElementById('floating-form').classList.toggle('active');
+        }
+
+        function setType(type) {
+            selectedType = type;
+            const btnInc = document.getElementById('btn-income');
+            const btnExp = document.getElementById('btn-expense');
+            
+            if(type === 'income') {
+                btnInc.style.backgroundColor = 'rgba(0, 242, 255, 0.2)';
+                btnInc.style.borderColor = '#00f2ff';
+                btnExp.style.backgroundColor = 'transparent';
+                btnExp.style.borderColor = 'rgba(244, 114, 182, 0.2)';
+            } else {
+                btnExp.style.backgroundColor = 'rgba(255, 0, 222, 0.2)';
+                btnExp.style.borderColor = '#ff00de';
+                btnInc.style.backgroundColor = 'transparent';
+                btnInc.style.borderColor = 'rgba(0, 242, 255, 0.2)';
+            }
+        }
+
+        function formatIDR(amount) {
+            return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(amount);
+        }
+
+        function clearAll() {
+            if(confirm('Hapus semua riwayat transaksi?')) {
+                transactions = [];
+                updateUI();
+            }
+        }
+
+        function deleteTransaction(index) {
+            transactions.splice(index, 1);
+            updateUI();
+        }
+
+        function updateUI() {
+            const list = document.getElementById('transaction-list');
+            list.innerHTML = '';
+            
+            let totalIncome = 0;
+            let totalExpense = 0;
+
+            if (transactions.length === 0) {
+                list.innerHTML = '<div class="text-center py-20 text-gray-700 italic text-sm">Belum ada aktivitas...</div>';
+            }
+
+            transactions.forEach((t, index) => {
+                if(t.type === 'income') totalIncome += t.amount;
+                else totalExpense += t.amount;
+
+                const div = document.createElement('div');
+                div.className = `flex items-center justify-between p-4 bg-white/5 rounded-2xl border-l-2 ${t.type === 'income' ? 'border-cyan-500' : 'border-pink-500'} hover:bg-white/10 transition-all group`;
+                div.innerHTML = `
+                    <div class="flex flex-col">
+                        <p class="font-bold text-gray-200 text-sm">${t.desc}</p>
+                        <p class="text-[9px] text-gray-600 uppercase tracking-widest">${t.category} • ${t.date}</p>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <span class="font-mono text-sm font-bold ${t.type === 'income' ? 'text-cyan-400' : 'text-pink-400'}">
+                            ${t.type === 'income' ? '+' : '-'}${t.amount.toLocaleString('id-ID')}
+                        </span>
+                        <button onclick="deleteTransaction(${index})" class="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-red-400 transition-all">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                        </button>
+                    </div>
+                `;
+                list.appendChild(div);
+            });
+
+            document.getElementById('total-balance').innerText = formatIDR(totalIncome - totalExpense);
+            
+            updateAllCharts(totalIncome, totalExpense);
+            localStorage.setItem('transactions_v2', JSON.stringify(transactions));
+        }
+
+        function updateAllCharts(income, expense) {
+            const ctxLine = document.getElementById('lineChart').getContext('2d');
+            const ctxDoughnut = document.getElementById('doughnutChart').getContext('2d');
+            const ctxBar = document.getElementById('barChart').getContext('2d');
+
+            // 1. Tren Saldo (Line Chart)
+            let runningBalance = 0;
+            const lineLabels = [...transactions].reverse().map(t => t.date);
+            const lineData = [...transactions].reverse().map(t => {
+                runningBalance += (t.type === 'income' ? t.amount : -t.amount);
+                return runningBalance;
+            });
+
+            if(charts.line) charts.line.destroy();
+            charts.line = new Chart(ctxLine, {
+                type: 'line',
+                data: {
+                    labels: lineLabels,
+                    datasets: [{
+                        label: 'Saldo',
+                        data: lineData,
+                        borderColor: '#bc13fe',
+                        backgroundColor: 'rgba(188, 19, 254, 0.1)',
+                        fill: true,
+                        tension: 0.4,
+                        borderWidth: 3,
+                        pointRadius: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#64748b', font: { size: 9 } } },
+                        x: { grid: { display: false }, ticks: { color: '#64748b', font: { size: 9 } } }
+                    }
+                }
+            });
+
+            // 2. Alokasi Pengeluaran (Doughnut)
+            const expenseByCat = transactions
+                .filter(t => t.type === 'expense')
+                .reduce((acc, curr) => {
+                    acc[curr.category] = (acc[curr.category] || 0) + curr.amount;
+                    return acc;
+                }, {});
+
+            if(charts.doughnut) charts.doughnut.destroy();
+            charts.doughnut = new Chart(ctxDoughnut, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(expenseByCat),
+                    datasets: [{
+                        data: Object.values(expenseByCat),
+                        backgroundColor: ['#00f2ff', '#bc13fe', '#ff00de', '#f59e0b', '#3b82f6'],
+                        borderWidth: 0,
+                        hoverOffset: 15
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { 
+                        legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 9 }, padding: 10 } } 
+                    },
+                    cutout: '75%'
+                }
+            });
+
+            // 3. Comparison (Bar)
+            if(charts.bar) charts.bar.destroy();
+            charts.bar = new Chart(ctxBar, {
+                type: 'bar',
+                data: {
+                    labels: ['Income', 'Expense'],
+                    datasets: [{
+                        data: [income, expense],
+                        backgroundColor: ['#00f2ff', '#ff00de'],
+                        borderRadius: 10,
+                        barThickness: 40
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { display: false } },
+                        x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 10, weight: 'bold' } } }
+                    }
+                }
+            });
+        }
+
+        document.getElementById('finance-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const desc = document.getElementById('desc').value;
+            const amount = parseFloat(document.getElementById('amount').value);
+            const category = document.getElementById('category').value;
+            const now = new Date();
+            const date = now.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
+
+            transactions.unshift({ desc, amount, category, type: selectedType, date });
+            e.target.reset();
+            toggleForm();
+            updateUI();
+        });
+
+        // Initialize
+        setType('income');
+        updateUI();
+    </script>
+</body>
+</html>
